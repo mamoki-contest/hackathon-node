@@ -1,0 +1,8 @@
+# SENTRY-X 허브(노트북) 의존성
+# 설치: python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt
+ultralytics>=8.4        # YOLO 사람 검출 (torch/torchvision 자동 포함)
+opencv-python>=4.10     # 웹캠/열화상/오버레이
+numpy>=1.26
+paho-mqtt>=2.0          # MQTT 수집기 (ingest.py)
+pyserial>=3.5           # USB 수집기 (ingest_usb.py)
+pyyaml>=6.0             # config.yaml 로드

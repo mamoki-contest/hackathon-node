@@ -1,0 +1,24 @@
+# SENTRY-X 허브 설정 — 노드↔구역 매핑은 여기서 (하드코딩 금지, PRD Slice 2)
+# 보드 추가/교체 시 이 파일만 수정한다.
+
+# 구역 정의 (화면 표시 순서 = 좌→우)
+zones: [left, center, right]
+
+# 노드 ID ↔ 구역 매핑. ESPectre 노드의 node_id 와 일치시킬 것.
+# 노드가 2개면 left/right 만 두면 자동으로 2구역으로 동작(강등은 Slice 7).
+nodes:
+  node1: left
+  node2: center
+  node3: right
+
+# 구역 융합 파라미터
+fusion:
+  threshold: 0.5        # 평활화된 모션 점수가 이 값 이상이면 구역 활성
+  ema_alpha: 0.4        # 지수이동평균 평활 계수 (0~1, 클수록 민감/덜 평활)
+  stale_after_s: 3.0    # 이 시간(초) 넘게 신호 없는 노드는 '무신호' 처리
+
+# MQTT (신호 수집기 / Slice 1)
+mqtt:
+  broker: 127.0.0.1     # 허브(노트북) 자신
+  port: 1883
+  topic: sentryx/node/+/motion   # ESPectre 노드들이 발행하는 토픽 패턴
