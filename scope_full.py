@@ -51,23 +51,47 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cam", type=int, default=0,
                     help="카메라 번호. 아이폰(연속성)이 0번이면 1, 2 로 바꿔 맥북 내장 선택")
+    ap.add_argument("--mqtt", action="store_true",
+                    help="USB 대신 MQTT로 노드 신호 수신 (무선/보조배터리). 브로커+노드가 mamoki에 있어야 함")
     args = ap.parse_args()
 
     cfg = yaml.safe_load(open(CONFIG, encoding="utf-8"))
     zones = cfg["zones"]
+    # USB: 점수 = mvmt/thr (임계 1.0). MQTT: raw mvmt를 노드별 기준선으로 정규화(임계 3.0).
+    threshold = 3.0 if args.mqtt else 1.0
     fus = ZoneFusion(node_zone=cfg["nodes"], zones=zones,
-                     threshold=1.0, ema_alpha=cfg["fusion"]["ema_alpha"],
+                     threshold=threshold, ema_alpha=cfg["fusion"]["ema_alpha"],
                      stale_after_s=cfg["fusion"]["stale_after_s"])
-    pairs = discover_usb_nodes()
-    if not pairs:
-        print("USB 보드를 못 찾음 — ESP32 연결 확인")
+
     ings = []
-    for port, nid in pairs:
-        ig = SerialIngest(port=port, node_id=nid,
-                          on_signal=lambda n, s, t: fus.update(n, s, time.time()))
+    if args.mqtt:
+        from ingest import SignalIngest
+        mq = cfg["mqtt"]
+        _base = {}
+
+        def on_sig(nid, score, ts):
+            # 노드마다 raw mvmt 스케일이 달라서, 조용할 때의 '바닥'을 추적해 배율로 정규화
+            b = _base.get(nid, score)
+            b = score if score < b else b * 0.999 + score * 0.001
+            b = max(b, 1e-4)
+            _base[nid] = b
+            fus.update(nid, score / b, time.time())   # 기준선 대비 몇 배인지
+
+        ig = SignalIngest(broker=mq["broker"], port=mq["port"],
+                          topic=mq["topic"], on_signal=on_sig)
         ig.start_async()
         ings.append(ig)
-        print(f"  {port} → {nid}")
+        print(f"  MQTT {mq['broker']}:{mq['port']}  {mq['topic']}")
+    else:
+        pairs = discover_usb_nodes()
+        if not pairs:
+            print("USB 보드를 못 찾음 — ESP32 연결 확인")
+        for port, nid in pairs:
+            ig = SerialIngest(port=port, node_id=nid,
+                              on_signal=lambda n, s, t: fus.update(n, s, time.time()))
+            ig.start_async()
+            ings.append(ig)
+            print(f"  {port} → {nid}")
 
     print("YOLO 로드...")
     model = YOLO("yolov8n.pt")
