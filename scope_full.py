@@ -65,7 +65,21 @@ def main():
 
     ings = []
     if args.mqtt:
+        import subprocess
         from ingest import SignalIngest
+        # 브로커(mosquitto) 자동 시작 — 안 켜져 있으면 직접 띄운다
+        running = subprocess.run(
+            ["bash", "-c", "lsof -nP -iTCP:1883 -sTCP:LISTEN | grep -q mosquitto"]
+        ).returncode == 0
+        if not running:
+            conf = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "mosquitto.conf")
+            subprocess.Popen(["/opt/homebrew/sbin/mosquitto", "-c", conf],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(2)
+            print("  브로커(mosquitto) 자동 시작")
+        else:
+            print("  브로커 이미 실행중")
         mq = cfg["mqtt"]
         _base = {}
 
